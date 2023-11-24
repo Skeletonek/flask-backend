@@ -1,10 +1,15 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from database import db
 from utils.show_json import show_json
-from bson import json_util
 from bson import ObjectId
-import json
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
+from utils.regex import password_regex, email_regex
+import utils.weather
+import re
+import threading
+import schedule
+import time
 
 app = Flask(__name__)
 
@@ -80,3 +85,62 @@ def delete_travel(id):
         print(str(e))
         return show_json("Nie udało się usunąć wycieczki", 500, False)
     
+
+@app.route("/weather-newest")
+def show__newest_weather():
+    data = db.weather.find({}).sort({"_id":-1}).limit(1)
+    if not data:
+        return show_json("Nie znaleziono danych pogodowych", 404, False)
+    weathers = []
+    for item in data:
+        item['_id'] = str(item['_id'])
+        weathers.append(item)
+    return show_json("Pobrane obecne dane pogodowe", 200, True, weathers)
+
+
+@app.route("/weather")
+def show_all_weather():
+     data = db.weather.find({}).sort({"_id":-1})
+     weather = []
+     for item in data:
+        item['_id'] = str(item['_id'])
+        weather.append(item)
+     return show_json("Udało się pobrać dane",200,True,weather) 
+
+
+# -------------------------------------------------------------
+
+@app.route("/register", methods=["POST"])
+def register():
+    username = request.json['username']
+    email = request.json['email']
+    password = request.json['password']
+    hashed_password = generate_password_hash(password)
+    
+    if re.match(password_regex, password) is None:
+        return show_json("Hasło musi zawierać małą, dużą literę, cyfrę i minimum 8 znaków", 400, False)
+    
+    if re.match(email_regex, email) is None:
+        return show_json("Podano niepoprawny adres email", 400, False)
+
+    user = {
+        "username": username,
+        "email": email,
+        "password": hashed_password
+    }
+
+    db.users.insert_one(user)
+
+    user['_id'] = str(user['_id'])
+
+    return show_json("Użytkownik pomyślnie zarejestrowany", 201, True, user)
+
+
+# -------------------------------------------------------------
+
+
+# def download_weather_data():
+#     weather.process(db)
+#     threading.Timer(60.0, download_weather_data).start()
+
+# download_weather_data()
