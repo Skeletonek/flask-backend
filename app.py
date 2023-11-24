@@ -117,6 +117,12 @@ def register():
     password = request.json['password']
     hashed_password = generate_password_hash(password)
     
+    if db.users.find_one({"username": username}):
+        return show_json("Użytkownik o podanej nazwie jest już zarejestrowany", 400, False)
+    
+    if db.users.find_one({"email": email}):
+        return show_json("Email został już użyty", 400, False)
+
     if re.match(password_regex, password) is None:
         return show_json("Hasło musi zawierać małą, dużą literę, cyfrę i minimum 8 znaków", 400, False)
     
@@ -135,6 +141,22 @@ def register():
 
     return show_json("Użytkownik pomyślnie zarejestrowany", 201, True, user)
 
+
+@app.route("/login", methods=["POST"])
+def login():
+    password = request.json['password']
+    email = request.json['email']
+
+    user_exists = db.users.find_one({'email': email})
+    if user_exists is None:
+        return show_json("Błędny adres e-mail", 404, False)
+    
+    password_check = check_password_hash(user_exists['password'], password)
+
+    if password_check == False:
+        return show_json("Niepoprawne hasło", 404, False)
+    
+    return show_json("Poprawnie zalogowano", 200, True, email)
 
 # -------------------------------------------------------------
 

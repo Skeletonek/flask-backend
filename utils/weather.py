@@ -4,7 +4,7 @@ import time
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
-const = ("<APIKEY>", "Pączkowo")
+const = ("4f450a11463f813d4d1745404368b933", "Pączkowo")
 APIKey, city = const
 
 def process(db):
