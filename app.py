@@ -16,7 +16,7 @@ import utils.weather
 
 app = Flask(__name__)
 
-cors = CORS(app)
+cors = CORS(app, supports_credentials=True)
 app.config['CORS_HEADERS'] = "Content-Type"
 app.permanent_session_lifetime = timedelta(minutes=1)
 app.secret_key = "4f450a11463f813d4d1745404368b933"
@@ -177,6 +177,24 @@ def logout():
         return show_json("Nie można wylogować będąc niezalogowanym", 401, False)
     session.pop('email', None)
     return show_json("Wylogowano", 200, True)
+
+
+@app.route("/dashboard")
+def dashboard():
+    if "email" in session:
+        travels = db.travels.aggregate([{"$project":{"_id":0}}])
+        weather = db.weather.aggregate([{"$project":{"_id":0}}])
+        user = db.users.find_one({"email":session["email"]})
+
+        user['_id'] = str(user['_id'])
+
+        return show_json("Przyznano dostęp", 200, True, {
+            "travels": list(travels),
+            "weather": list(weather),
+            "user": user
+        })
+    else:
+        return show_json("Odmowa dostępu", 401, False)
 
 
 @app.route("/whoami")
