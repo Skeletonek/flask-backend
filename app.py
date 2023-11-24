@@ -1,43 +1,51 @@
-from flask import Flask, request
-from database import db
-from utils.show_json import show_json
-from bson import ObjectId
+from flask import Flask, request, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from utils.regex import password_regex, email_regex
-import utils.weather
+from database import db
+from bson import ObjectId
+from utils.show_json import show_json
+from datetime import datetime, timedelta
 import re
 import threading
 import schedule
 import time
 
+from utils.regex import password_regex, email_regex
+from utils.session_expiration import session_expiration
+import utils.weather
+
 app = Flask(__name__)
 
 cors = CORS(app)
 app.config['CORS_HEADERS'] = "Content-Type"
+app.permanent_session_lifetime = timedelta(minutes=1)
+app.secret_key = "4f450a11463f813d4d1745404368b933"
 
 @app.route("/create-travel",methods=["GET","POST"])
 def create_travel():
-    title = request.json['title']
-    price = request.json['price']
-    country = request.json['country']
-    desc = request.json['desc']
-    image = request.json['image']
+    if 'email' in session:
+        title = request.json['title']
+        price = request.json['price']
+        country = request.json['country']
+        desc = request.json['desc']
+        image = request.json['image']
 
-    travel_exists = db.travels.find_one({"title":title})
+        travel_exists = db.travels.find_one({"title":title})
 
-    if travel_exists:
-        return show_json("Wycieczka o podanej nazwie już istnieje", 405, False)
-    
-    db.travels.insert_one({
-        "title": title,
-        "price": price,
-        "country": country,
-        "desc": desc,
-        "image": image
-    })
+        if travel_exists:
+            return show_json("Wycieczka o podanej nazwie już istnieje", 405, False)
+        
+        db.travels.insert_one({
+            "title": title,
+            "price": price,
+            "country": country,
+            "desc": desc,
+            "image": image
+        })
 
-    return show_json("Udało się dodać nową wycieczkę", 200, True)
+        return show_json("Udało się dodać nową wycieczkę", 200, True)
+    else:
+        return show_json("Odmowa dostępu", 401, False)
 
 
 @app.route("/all-travels", methods=["GET", "POST"])
@@ -156,7 +164,28 @@ def login():
     if password_check == False:
         return show_json("Niepoprawne hasło", 404, False)
     
+    expiration = session_expiration(app)
+    session['email'] = email
+    session['date'] = (datetime.now() + expiration).strftime("%H:%M:%S")
+    
     return show_json("Poprawnie zalogowano", 200, True, email)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    if not "email" in session:
+        return show_json("Nie można wylogować będąc niezalogowanym", 401, False)
+    session.pop('email', None)
+    return show_json("Wylogowano", 200, True)
+
+
+@app.route("/whoami")
+def who_am_i():
+    if "email" in session:
+        user = session['email']
+        return show_json("Informacje o użytkowniku", 200, True, user)
+    else:
+        return show_json("Odmowa dostępu", 401, False)
 
 # -------------------------------------------------------------
 
